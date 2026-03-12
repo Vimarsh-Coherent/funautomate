@@ -1,0 +1,50 @@
+sheet: Data
+
+fields:
+  market_name: D2
+  market_size_row1: 7          # Row with first market size (label in B, value in D)
+  market_size_row2: 8          # Row with second market size
+  cagr_row: 9                  # Row with CAGR value
+  disease_name: "NA"           # Default, override per file if needed
+
+segments:
+  start_col: H                 # First segment column
+  header_row: 2                # Row containing segment names
+  data_start_row: 3            # Row where sub-segments begin
+  sub_segment_prefix: ">"      # Prefix for sub-segment items
+  skip_col_keywords:           # Columns with these in header = metadata, not segments
+    - "%"
+    - "Market share"
+
+drivers:
+  search_label: "Driver"
+  description_col: C
+  start_row: 13
+  end_row: 25
+
+restraints:
+  search_label: "Restrain"
+  description_col: C
+  start_row: 13
+  end_row: 25
+
+opportunities:
+  search_label: "Opportunity"
+  description_col: C
+  start_row: 13
+  end_row: 25
+
+regions:
+  start_row: 22
+  end_row: 30
+  region_name_col: C
+  status_col: D
+
+market_size_template: "Market size in {year1} is {size1} and for {year2} is {size2} and CAGR is {cagr}%"
+
+app:
+  url: "https://marketrytrai.com/application"
+  email: ""
+  password: ""
+  collateral_dropdown1: "Report Summary"
+  collateral_dropdown2: "CMI"
