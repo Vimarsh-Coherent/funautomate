@@ -44,7 +44,7 @@ market_size_template: "Market size in {year1} is {size1} and for {year2} is {siz
 
 app:
   url: "https://marketrytrai.com/application"
-  email: ""
-  password: ""
+  email: "suresh.s@coherentmarketinsights.com"
+  password: "Suresh@123"
   collateral_dropdown1: "Report Summary"
   collateral_dropdown2: "CMI"

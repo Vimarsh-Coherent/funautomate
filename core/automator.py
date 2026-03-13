@@ -71,7 +71,7 @@ async def _login(page: Page, email: str, password: str, progress: Callable):
     """Handle login to MarketRytrAI."""
     progress("login", "running", f"Logging in as {email}")
 
-    await page.goto("https://marketrytrai.com/login?land=login", wait_until="networkidle", timeout=60000)
+    await page.goto("https://marketrytrai.com/login?land=login", wait_until="networkidle", timeout=120000)
     await page.wait_for_timeout(2000)
 
     await page.locator(SELECTORS["login_email"]).fill(email)
@@ -86,7 +86,14 @@ async def _login(page: Page, email: str, password: str, progress: Callable):
 async def _navigate_to_form(page: Page, app_url: str, progress: Callable):
     """Navigate to the app and click 'Data Driven Insights' to show the form."""
     progress("navigate", "running", f"Opening {app_url}")
-    await page.goto(app_url, wait_until="networkidle", timeout=60000)
+    # Bubble.io apps load slowly — use domcontentloaded first, then wait for idle
+    try:
+        await page.goto(app_url, wait_until="networkidle", timeout=120000)
+    except Exception:
+        # Retry with looser wait condition
+        progress("navigate", "running", f"Retrying navigation to {app_url}...")
+        await page.goto(app_url, wait_until="domcontentloaded", timeout=120000)
+        await page.wait_for_timeout(10000)
     await page.wait_for_timeout(3000)
 
     # Click "Data Driven Insights" to switch to the form view

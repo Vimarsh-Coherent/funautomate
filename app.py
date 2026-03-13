@@ -462,41 +462,93 @@ with tab3:
                 with col3:
                     st.metric("Failed", fail_count)
 
-                # Collect all successful downloaded files
-                downloaded_files = []
+                # Display results and collect output dirs
                 for r in result_list:
                     if r["success"]:
-                        st.success(f"**{r['market']}** (`{r['name']}`) — Downloaded: `{r.get('downloaded_file', 'N/A')}`")
-                        dl_file = r.get("downloaded_file")
-                        if dl_file and os.path.exists(dl_file):
-                            downloaded_files.append(dl_file)
-                            with open(dl_file, "rb") as f:
-                                st.download_button(
-                                    f"Download: {r['market']}",
-                                    data=f.read(),
-                                    file_name=os.path.basename(dl_file),
-                                    key=f"dl_batch_{r['name']}",
-                                )
+                        out_dir = r.get("output_dir", "")
+                        n_images = len(r.get("image_files", []))
+                        n_gen = len(r.get("generated_files", []))
+                        st.success(
+                            f"**{r['market']}** (`{r['name']}`) — "
+                            f"Report downloaded, {n_images} images, {n_gen} documents generated"
+                        )
                     else:
-                        st.error(f"**{r['market']}** (`{r['name']}`) — Error: {r.get('error', 'Unknown')}")
+                        # Even if web automation failed, show generated files
+                        n_gen = len(r.get("generated_files", []))
+                        n_images = len(r.get("image_files", []))
+                        if n_gen > 0 or n_images > 0:
+                            st.warning(
+                                f"**{r['market']}** (`{r['name']}`) — "
+                                f"Web automation failed ({r.get('error', 'Unknown')}), "
+                                f"but {n_images} images + {n_gen} documents were generated"
+                            )
+                        else:
+                            st.error(f"**{r['market']}** (`{r['name']}`) — Error: {r.get('error', 'Unknown')}")
 
-                # AUTO-DOWNLOAD: trigger once when batch just finished
+                # AUTO-DOWNLOAD: Create ZIP per market with all outputs
                 auto_dl_key = f"auto_downloaded_{job_id}"
-                if downloaded_files and not st.session_state.get(auto_dl_key, False):
-                    st.session_state[auto_dl_key] = True
+                if not st.session_state.get(auto_dl_key, False):
+                    # Check if there are any files to download
+                    has_files = any(
+                        r.get("output_dir") and os.path.isdir(r.get("output_dir", ""))
+                        for r in result_list
+                    )
+                    if has_files:
+                        st.session_state[auto_dl_key] = True
 
-                    if len(downloaded_files) == 1:
-                        # Single file — auto-download directly
-                        with open(downloaded_files[0], "rb") as f:
-                            auto_download(f.read(), os.path.basename(downloaded_files[0]))
-                        st.info("Report auto-downloaded to your browser!")
-                    else:
-                        # Multiple files — auto-download each one individually
-                        for dl_file in downloaded_files:
-                            with open(dl_file, "rb") as f:
-                                auto_download(f.read(), os.path.basename(dl_file))
-                            time.sleep(0.5)  # Small delay between downloads
-                        st.info(f"All {len(downloaded_files)} reports auto-downloaded!")
+                        for r in result_list:
+                            out_dir = r.get("output_dir", "")
+                            if not out_dir or not os.path.isdir(out_dir):
+                                continue
+
+                            out_path = Path(out_dir)
+                            output_files = list(out_path.iterdir())
+                            if not output_files:
+                                continue
+
+                            market_safe = r.get("market", "output").replace(" ", "_")
+
+                            if len(output_files) == 1:
+                                # Single file — download directly
+                                f = output_files[0]
+                                with open(f, "rb") as fh:
+                                    auto_download(fh.read(), f.name)
+                            else:
+                                # Multiple files — create ZIP
+                                zip_buffer = BytesIO()
+                                with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+                                    for f in output_files:
+                                        if f.is_file():
+                                            zf.write(str(f), f.name)
+                                zip_buffer.seek(0)
+                                auto_download(zip_buffer.read(), f"{market_safe}.zip")
+
+                            time.sleep(0.5)
+
+                        st.info("All output files auto-downloaded as ZIP packages!")
+
+                # Manual download buttons
+                st.divider()
+                st.subheader("Download Individual Files")
+                for r in result_list:
+                    out_dir = r.get("output_dir", "")
+                    if out_dir and os.path.isdir(out_dir):
+                        with st.expander(f"Files for: {r.get('market', r['name'])}"):
+                            for f in sorted(Path(out_dir).iterdir()):
+                                if f.is_file():
+                                    col1, col2 = st.columns([3, 1])
+                                    with col1:
+                                        st.markdown(f"**{f.name}** ({f.stat().st_size / 1024:.1f} KB)")
+                                    with col2:
+                                        if f.suffix in [".jpg", ".png"]:
+                                            st.image(str(f), width=200)
+                                        with open(f, "rb") as fh:
+                                            st.download_button(
+                                                "Download",
+                                                data=fh.read(),
+                                                file_name=f.name,
+                                                key=f"dl_{r['name']}_{f.name}",
+                                            )
 
                 if st.button("Clear Results & Start New Batch"):
                     st.session_state.job_id = None
