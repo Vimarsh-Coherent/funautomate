@@ -40,6 +40,14 @@ def _set_text(shape, text: str, font_size: int = None, bold: bool = None,
     if not shape.has_text_frame:
         return
     tf = shape.text_frame
+
+    # Clear ALL extra paragraphs (keep only the first one)
+    # This prevents leftover template text from showing (e.g. old market name)
+    from pptx.oxml.ns import qn
+    p_elements = tf._txBody.findall(qn("a:p"))
+    for p_elem in p_elements[1:]:
+        tf._txBody.remove(p_elem)
+
     if tf.paragraphs:
         para = tf.paragraphs[0]
         # Clear existing runs
@@ -150,9 +158,36 @@ def _modify_impact_analysis(slide, data: ExtendedMarketData):
         if idx < len(shapes):
             _set_text(shapes[idx], text)
 
-    # Title
-    if len(shapes) > 11:
-        _set_text(shapes[11], f"Impact Analysis of Key Factors | {data.market_name}")
+    # Title (shape[11] has 2 lines: title + market name)
+    if len(shapes) > 11 and shapes[11].has_text_frame:
+        tf = shapes[11].text_frame
+        # Set first paragraph = title
+        if tf.paragraphs:
+            para = tf.paragraphs[0]
+            for run in para.runs:
+                run.text = ""
+            if para.runs:
+                para.runs[0].text = "Impact Analysis of Key Factors"
+            else:
+                run = para.add_run()
+                run.text = "Impact Analysis of Key Factors"
+        # Set or create second paragraph = market name
+        from pptx.oxml.ns import qn
+        p_elements = tf._txBody.findall(qn("a:p"))
+        if len(p_elements) > 1:
+            # Clear existing second paragraph runs and set market name
+            para2 = tf.paragraphs[1]
+            for run in para2.runs:
+                run.text = ""
+            if para2.runs:
+                para2.runs[0].text = data.market_name
+            else:
+                run = para2.add_run()
+                run.text = data.market_name
+        else:
+            para2 = tf.add_paragraph()
+            run = para2.add_run()
+            run.text = data.market_name
 
     # Position indicator arrows based on values
     # VBA formula: .Left = 340 + (100 * indicator_value) in points
