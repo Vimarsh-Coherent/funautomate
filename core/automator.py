@@ -1,4 +1,5 @@
 import asyncio
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Callable
@@ -266,7 +267,11 @@ async def run_automation(
     download_dir.mkdir(parents=True, exist_ok=True)
 
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=headless)
+        # Docker/Linux needs --no-sandbox when running as root
+        launch_args = []
+        if os.name != "nt":
+            launch_args = ["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"]
+        browser = await p.chromium.launch(headless=headless, args=launch_args)
         context = await browser.new_context(accept_downloads=True)
         page = await context.new_page()
         page.set_default_timeout(timeout_ms)
