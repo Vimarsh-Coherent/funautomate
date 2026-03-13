@@ -395,10 +395,12 @@ with tab3:
             job_file.write_text(json.dumps(job_config, ensure_ascii=False), encoding="utf-8")
 
             # Launch subprocess using same Python executable
+            log_file = job_dir / "subprocess.log"
+            log_fh = open(log_file, "w")
             popen_kwargs = {
                 "cwd": str(BASE_DIR),
-                "stdout": subprocess.DEVNULL,
-                "stderr": subprocess.DEVNULL,
+                "stdout": log_fh,
+                "stderr": log_fh,
             }
             if os.name == "nt":
                 popen_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW

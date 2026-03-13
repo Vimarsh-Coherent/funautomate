@@ -1,6 +1,7 @@
 services:
   - type: web
     name: funautomate
-    runtime: docker
+    runtime: python
     plan: free
-    dockerfilePath: ./Dockerfile
+    buildCommand: chmod +x build.sh && ./build.sh
+    startCommand: streamlit run app.py --server.port=$PORT --server.address=0.0.0.0 --server.enableCORS=false --server.enableXsrfProtection=false --server.headless=true
