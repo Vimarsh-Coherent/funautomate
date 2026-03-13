@@ -7,6 +7,23 @@ import yaml
 from core.models import MarketData, SegmentData, ExtendedMarketData, RegionData, ChartItem
 
 
+def _safe_float(value, default: float = 0.0) -> float:
+    """Safely convert a cell value to float, stripping %, whitespace, and stray characters."""
+    if value is None:
+        return default
+    if isinstance(value, (int, float)):
+        return float(value)
+    s = str(value).strip().replace("%", "").replace(",", "")
+    # Remove any non-numeric characters except dot and minus
+    s = re.sub(r"[^0-9.\-]", "", s)
+    if not s:
+        return default
+    try:
+        return float(s)
+    except (ValueError, TypeError):
+        return default
+
+
 def col_letter_to_index(letter: str) -> int:
     """Convert column letter (A, B, ..., Z, AA, ...) to 1-based index."""
     result = 0
@@ -371,14 +388,14 @@ def parse_excel_full(
 
     # Market metrics
     market_share_raw = get_cell(ws, "D", 22)
-    market_share_pct = float(market_share_raw) if market_share_raw else 0.0
+    market_share_pct = _safe_float(market_share_raw)
     market_size_value = str(get_cell(ws, "D", 7) or "")
     forecast_size_value = str(get_cell(ws, "D", 8) or "")
     base_year = int(get_cell(ws, "D", 4) or 2025)
     historical_start = int(get_cell(ws, "D", 5) or 2020)
     forecast_end = int(get_cell(ws, "D", 6) or 2033)
     cagr_raw = get_cell(ws, "D", 9)
-    cagr_value = float(cagr_raw) if cagr_raw else 0.0
+    cagr_value = _safe_float(cagr_raw)
     currency_type = str(get_cell(ws, "D", 10) or "USD")
 
     # Concentration
