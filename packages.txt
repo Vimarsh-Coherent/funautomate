@@ -13,5 +13,3 @@ libxdamage1
 libxcomposite1
 libxfixes3
 libx11-xcb1
-libreoffice
-poppler-utils

@@ -15,6 +15,7 @@ from core.excel_parser import parse_excel, parse_excel_full
 from core.automator import run_automation_sync
 from core.pptx_generator import generate_pptx
 from core.image_exporter import export_slides_to_jpg
+from core.image_generator import generate_all_slide_images
 from core.doc_generator import generate_combined_doc, generate_toc_doc
 
 logging.basicConfig(level=logging.INFO)
@@ -139,14 +140,14 @@ def main():
                 generate_pptx(template, full_data, pptx_path)
                 generated_files.append(str(pptx_path))
                 progress_callback("generate", "running", "PowerPoint generated")
-
-                # Export slides as JPG
-                progress_callback("generate", "running", "Exporting slide images...")
-                images = export_slides_to_jpg(pptx_path, gen_output_dir)
-                image_files = [str(p) for p in images]
-                progress_callback("generate", "running", f"Exported {len(images)} images")
             else:
-                progress_callback("generate", "warning", "No PPTX template found, skipping image generation")
+                progress_callback("generate", "warning", "No PPTX template found, skipping PPTX generation")
+
+            # Generate slide images using pure Python (works on all platforms)
+            progress_callback("generate", "running", "Generating slide images...")
+            images = generate_all_slide_images(full_data, gen_output_dir)
+            image_files = [str(p) for p in images]
+            progress_callback("generate", "running", f"Generated {len(images)} slide images")
 
             # Generate Combined document
             progress_callback("generate", "running", "Generating Combined document...")
