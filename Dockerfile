@@ -1,10 +1,11 @@
 FROM python:3.11-slim
 
 # Install system dependencies: LibreOffice for PPTX->PDF, poppler for PDF->images,
-# plus browser deps for Playwright
+# plus browser deps for Playwright, and curl for healthcheck
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libreoffice \
     poppler-utils \
+    curl \
     libnss3 \
     libnspr4 \
     libatk1.0-0 \
@@ -37,8 +38,15 @@ COPY . .
 # Create required directories
 RUN mkdir -p data outputs jobs
 
-EXPOSE 8501
+# Render uses PORT env variable (default 10000)
+ENV PORT=10000
+EXPOSE ${PORT}
 
-HEALTHCHECK CMD curl --fail http://localhost:8501/_stcore/health || exit 1
+HEALTHCHECK CMD curl --fail http://localhost:${PORT}/_stcore/health || exit 1
 
-ENTRYPOINT ["streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+ENTRYPOINT streamlit run app.py \
+    --server.port=${PORT} \
+    --server.address=0.0.0.0 \
+    --server.enableCORS=false \
+    --server.enableXsrfProtection=false \
+    --server.headless=true
