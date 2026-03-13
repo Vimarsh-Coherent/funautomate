@@ -66,7 +66,7 @@ def _export_via_comtypes(pptx_path: Path, output_dir: Path) -> list[Path]:
     return images
 
 
-def _export_via_libreoffice(pptx_path: Path, output_dir: Path) -> list[Path]:
+def _export_via_libreoffice(pptx_path: Path, output_dir: Path, lo_bin: str = "libreoffice") -> list[Path]:
     """Export slides via LibreOffice headless -> PDF -> images."""
     try:
         from PIL import Image
@@ -77,7 +77,7 @@ def _export_via_libreoffice(pptx_path: Path, output_dir: Path) -> list[Path]:
     # Step 1: Convert PPTX to PDF via LibreOffice
     pdf_path = output_dir / f"{pptx_path.stem}.pdf"
     result = subprocess.run(
-        ["libreoffice", "--headless", "--convert-to", "pdf",
+        [lo_bin, "--headless", "--convert-to", "pdf",
          "--outdir", str(output_dir), str(pptx_path)],
         capture_output=True, text=True, timeout=120,
     )
@@ -148,9 +148,10 @@ def export_slides_to_jpg(pptx_path: Path, output_dir: Path) -> list[Path]:
             logger.warning(f"COM export failed: {e}")
 
     # Try LibreOffice
-    if shutil.which("libreoffice") or shutil.which("soffice"):
+    lo_bin = shutil.which("libreoffice") or shutil.which("soffice")
+    if lo_bin:
         try:
-            images = _export_via_libreoffice(pptx_path, output_dir)
+            images = _export_via_libreoffice(pptx_path, output_dir, lo_bin)
             if images:
                 return images
         except Exception as e:
