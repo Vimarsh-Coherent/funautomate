@@ -96,10 +96,14 @@ def get_job_dir(job_id: str) -> Path:
 def is_job_running(job_id: str | None) -> bool:
     if not job_id:
         return False
-    results_path = get_job_dir(job_id) / "results.json"
+    job_dir = get_job_dir(job_id)
+    results_path = job_dir / "results.json"
     if not results_path.exists():
-        progress_path = get_job_dir(job_id) / "progress.json"
-        return progress_path.exists()
+        # Job started but no results yet - check if subprocess log exists
+        # (means subprocess was launched) or progress exists
+        progress_path = job_dir / "progress.json"
+        subprocess_log = job_dir / "subprocess.log"
+        return progress_path.exists() or subprocess_log.exists()
     try:
         data = json.loads(results_path.read_text(encoding="utf-8"))
         return data.get("running", False)
@@ -420,6 +424,17 @@ with tab3:
             progress = read_progress(job_id)
             results = read_results(job_id)
             running = is_job_running(job_id)
+
+            if not progress and running:
+                # Subprocess started but no progress yet — show log if available
+                log_path = get_job_dir(job_id) / "subprocess.log"
+                if log_path.exists():
+                    log_content = log_path.read_text(encoding="utf-8", errors="replace")
+                    if log_content.strip():
+                        st.subheader("Subprocess Log")
+                        st.code(log_content[-3000:], language="text")
+                else:
+                    st.info("Waiting for subprocess to start...")
 
             if progress:
                 current = progress.get("current_index", 0)

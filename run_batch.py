@@ -7,16 +7,10 @@ import json
 import logging
 import shutil
 import sys
+import traceback
 import time
 from datetime import datetime
 from pathlib import Path
-
-from core.excel_parser import parse_excel, parse_excel_full
-from core.automator import run_automation_sync
-from core.pptx_generator import generate_pptx
-from core.image_exporter import export_slides_to_jpg
-from core.image_generator import generate_all_slide_images
-from core.doc_generator import generate_combined_doc, generate_toc_doc
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -49,6 +43,49 @@ def main():
     progress_path = job_path.parent / "progress.json"
     results_path = job_path.parent / "results.json"
 
+    # Write initial progress immediately so the UI knows we started
+    log_entries = []
+    log_entries.append({
+        "time": datetime.now().strftime("%H:%M:%S"),
+        "step": "batch",
+        "status": "running",
+        "detail": "Subprocess started, loading modules...",
+    })
+    progress_path.write_text(json.dumps({
+        "current_index": 0, "total": 1, "running": True,
+        "log": log_entries,
+    }, ensure_ascii=False), encoding="utf-8")
+
+    # Lazy imports — if any fail, the error shows in progress log
+    try:
+        from core.excel_parser import parse_excel, parse_excel_full
+        from core.automator import run_automation_sync
+        from core.pptx_generator import generate_pptx
+        from core.image_generator import generate_all_slide_images
+        from core.doc_generator import generate_combined_doc, generate_toc_doc
+
+        log_entries.append({
+            "time": datetime.now().strftime("%H:%M:%S"),
+            "step": "batch",
+            "status": "running",
+            "detail": "Modules loaded successfully",
+        })
+    except Exception as e:
+        log_entries.append({
+            "time": datetime.now().strftime("%H:%M:%S"),
+            "step": "batch",
+            "status": "error",
+            "detail": f"Import failed: {e}\n{traceback.format_exc()}",
+        })
+        progress_path.write_text(json.dumps({
+            "current_index": 0, "total": 1, "running": True,
+            "log": log_entries,
+        }, ensure_ascii=False), encoding="utf-8")
+        results_path.write_text(json.dumps({
+            "running": False, "results": [],
+        }, ensure_ascii=False), encoding="utf-8")
+        return
+
     files = job["files"]  # list of {"name": str, "path": str}
     app_url = job["app_url"]
     email = job["email"]
@@ -60,7 +97,6 @@ def main():
     output_dir = job.get("output_dir", "outputs")
 
     all_results = []
-    log_entries = []
 
     def write_progress(current_index, total, log_entries_list):
         progress_data = {
@@ -122,9 +158,10 @@ def main():
             })
             write_progress(i + 1, len(files), log_entries)
 
-        # ---- NEW: Generate PPTX, images, and documents ----
+        # ---- Generate PPTX, images, and documents ----
         generated_files = []
         image_files = []
+        gen_output_dir = None
         try:
             full_data = parse_excel_full(file_path)
             market_name_safe = data.market_name.replace("/", "-").replace("\\", "-")
@@ -167,7 +204,7 @@ def main():
             logger.error(f"Generation step failed for {file_name}: {e}")
             progress_callback("generate", "error", f"Generation failed: {e}")
 
-        # ---- Web automation (existing) ----
+        # ---- Web automation ----
         try:
             result = run_automation_sync(
                 market_data=data,
@@ -183,7 +220,7 @@ def main():
             )
 
             # Copy web-downloaded .doc to generation output dir
-            if result.success and result.downloaded_file and gen_output_dir.exists():
+            if result.success and result.downloaded_file and gen_output_dir and gen_output_dir.exists():
                 try:
                     shutil.copy2(result.downloaded_file, gen_output_dir / Path(result.downloaded_file).name)
                 except Exception:
@@ -197,7 +234,7 @@ def main():
                 "downloaded_file": result.downloaded_file,
                 "image_files": image_files,
                 "generated_files": generated_files,
-                "output_dir": str(gen_output_dir),
+                "output_dir": str(gen_output_dir) if gen_output_dir else None,
             })
 
             if result.success:
@@ -224,7 +261,7 @@ def main():
                 "downloaded_file": None,
                 "image_files": image_files,
                 "generated_files": generated_files,
-                "output_dir": str(gen_output_dir) if 'gen_output_dir' in dir() else None,
+                "output_dir": str(gen_output_dir) if gen_output_dir else None,
             })
             log_entries.append({
                 "time": datetime.now().strftime("%H:%M:%S"),
@@ -249,4 +286,29 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        # Last-resort error handler: write error to progress file
+        print(f"FATAL ERROR: {e}", file=sys.stderr)
+        traceback.print_exc()
+        if len(sys.argv) >= 2:
+            job_path = Path(sys.argv[1])
+            progress_path = job_path.parent / "progress.json"
+            results_path = job_path.parent / "results.json"
+            error_entry = {
+                "time": datetime.now().strftime("%H:%M:%S"),
+                "step": "batch",
+                "status": "error",
+                "detail": f"FATAL: {e}",
+            }
+            try:
+                progress_path.write_text(json.dumps({
+                    "current_index": 0, "total": 1, "running": True,
+                    "log": [error_entry],
+                }, ensure_ascii=False), encoding="utf-8")
+                results_path.write_text(json.dumps({
+                    "running": False, "results": [],
+                }, ensure_ascii=False), encoding="utf-8")
+            except Exception:
+                pass
