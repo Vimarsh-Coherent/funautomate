@@ -180,11 +180,19 @@ def main():
             else:
                 progress_callback("generate", "warning", "No PPTX template found, skipping PPTX generation")
 
-            # Generate slide images using pure Python (works on all platforms)
-            progress_callback("generate", "running", "Generating slide images...")
-            images = generate_all_slide_images(full_data, gen_output_dir)
+            # Export slides as images from the generated PPTX
+            progress_callback("generate", "running", "Exporting slide images from PPTX...")
+            pptx_to_export = gen_output_dir / "Output.pptx" if template else None
+            images = []
+            if pptx_to_export and pptx_to_export.exists():
+                from core.image_exporter import export_slides_to_jpg
+                images = export_slides_to_jpg(pptx_to_export, gen_output_dir)
+            if not images:
+                # Fallback: pure Python rendering if no export backend available
+                progress_callback("generate", "running", "PPTX export unavailable, using fallback renderer...")
+                images = generate_all_slide_images(full_data, gen_output_dir)
             image_files = [str(p) for p in images]
-            progress_callback("generate", "running", f"Generated {len(images)} slide images")
+            progress_callback("generate", "running", f"Exported {len(images)} slide images")
 
             # Generate Combined document
             progress_callback("generate", "running", "Generating Combined document...")
